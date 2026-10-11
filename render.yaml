@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: passport-mrz-scanner
+    runtime: docker
+    plan: free
+    branch: saad
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
