@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passport Scanner</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#16181d; --muted:#667085; --line:#e4e7ec;
+          --accent:#2457f5; --ok:#067647; --okbg:#ecfdf3; --bad:#b42318; --badbg:#fef3f2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1115; --card:#181b21; --text:#eceef2; --muted:#98a2b3; --line:#2a2f38;
+            --accent:#6c8cff; --ok:#6ce9a6; --okbg:#0c2a1c; --bad:#fda29b; --badbg:#2d1311; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.4rem; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .drop { border:2px dashed var(--line); border-radius:12px; padding:28px 16px; text-align:center;
+          color:var(--muted); cursor:pointer; }
+  .drop.over { border-color:var(--accent); color:var(--accent); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--text);
+           padding:10px 16px; border-radius:8px; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  video, img.preview { width:100%; max-height:360px; object-fit:contain; border-radius:8px;
+                       background:#000; margin-top:12px; display:none; }
+  img.preview { background:transparent; }
+  table { width:100%; border-collapse:collapse; }
+  td { padding:8px 4px; border-bottom:1px solid var(--line); vertical-align:top; }
+  td:first-child { color:var(--muted); width:42%; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:99px; font-size:.85rem; font-weight:600; }
+  .ok { background:var(--okbg); color:var(--ok); }
+  .bad { background:var(--badbg); color:var(--bad); }
+  pre { background:var(--bg); padding:12px; border-radius:8px; overflow-x:auto; font-size:.85rem; margin:8px 0 0; }
+  .err { color:var(--bad); background:var(--badbg); padding:12px; border-radius:8px; }
+  .hidden { display:none; }
+  .checks { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Passport Scanner</h1>
+  <p class="sub">Upload or capture the photo page of a passport. The MRZ at the bottom is read and verified with its check digits.</p>
+
+  <div class="card">
+    <div class="drop" id="drop">Drop a passport image here, or click to choose a file</div>
+    <input type="file" id="file" accept="image/*" capture="environment" hidden>
+    <video id="video" playsinline muted></video>
+    <img id="preview" class="preview" alt="Preview">
+    <canvas id="canvas" hidden></canvas>
+    <div class="row">
+      <button id="camBtn">Use webcam</button>
+      <button id="snapBtn" class="hidden">Capture photo</button>
+      <button id="scanBtn" class="primary" disabled>Scan passport</button>
+    </div>
+  </div>
+
+  <div id="status"></div>
+  <div id="result" class="card hidden"></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const drop = $("drop"), fileInput = $("file"), video = $("video"), preview = $("preview"),
+      canvas = $("canvas"), camBtn = $("camBtn"), snapBtn = $("snapBtn"), scanBtn = $("scanBtn"),
+      statusEl = $("status"), resultEl = $("result");
+
+let blob = null, stream = null;
+
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+function setImage(b) {
+  blob = b;
+  preview.src = URL.createObjectURL(b);
+  preview.style.display = "block";
+  video.style.display = "none";
+  scanBtn.disabled = false;
+  resultEl.classList.add("hidden");
+  statusEl.innerHTML = "";
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  video.style.display = "none"; snapBtn.classList.add("hidden");
+}
+
+drop.onclick = () => fileInput.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => {
+  e.preventDefault(); drop.classList.remove("over");
+  if (e.dataTransfer.files[0]) { stopCamera(); setImage(e.dataTransfer.files[0]); }
+};
+fileInput.onchange = () => { if (fileInput.files[0]) { stopCamera(); setImage(fileInput.files[0]); } };
+
+camBtn.onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 } } });
+    video.srcObject = stream; await video.play();
+    video.style.display = "block"; preview.style.display = "none";
+    snapBtn.classList.remove("hidden");
+  } catch (e) {
+    statusEl.innerHTML = '<div class="err">Camera unavailable: ' + esc(e.message) + ' (needs HTTPS or localhost).</div>';
+  }
+};
+
+snapBtn.onclick = () => {
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  canvas.toBlob(b => { stopCamera(); setImage(new File([b], "capture.jpg", { type: "image/jpeg" })); }, "image/jpeg", 0.95);
+};
+
+scanBtn.onclick = async () => {
+  if (!blob) return;
+  scanBtn.disabled = true;
+  statusEl.innerHTML = '<div class="card">Scanning…</div>';
+  resultEl.classList.add("hidden");
+  const fd = new FormData();
+  fd.append("file", blob, blob.name || "scan.jpg");
+  try {
+    const r = await fetch("/api/scan", { method: "POST", body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || "Scan failed");
+    statusEl.innerHTML = "";
+    render(data);
+  } catch (e) {
+    statusEl.innerHTML = '<div class="err">' + esc(e.message) + '</div>';
+  } finally { scanBtn.disabled = false; }
+};
+
+function render(d) {
+  const labels = { passport_number:"Passport no.", date_of_birth:"Date of birth", expiry_date:"Expiry date",
+                   personal_number:"Personal no.", composite:"Overall" };
+  const checks = Object.entries(d.checks).map(([k, v]) =>
+    `<span class="badge ${v ? "ok" : "bad"}">${labels[k]} ${v ? "✓" : "✗"}</span>`).join("");
+  const rows = [
+    ["Surname", d.surname], ["Given names", d.given_names], ["Passport number", d.passport_number],
+    ["Nationality", d.nationality], ["Issuing country", d.issuing_country],
+    ["Date of birth", d.date_of_birth], ["Sex", d.sex],
+    ["Expiry date", d.expiry_date + (d.expired ? " (EXPIRED)" : "")],
+    ["Personal number", d.personal_number || "—"],
+  ].map(([k, v]) => `<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join("");
+
+  resultEl.innerHTML = `
+    <div><span class="badge ${d.valid ? "ok" : "bad"}">${d.valid ? "All check digits valid" : "Check failed — rescan or correct manually"}</span></div>
+    <div class="checks">${checks}</div>
+    <table style="margin-top:12px">${rows}</table>
+    <pre>${esc(d.mrz_line1)}\n${esc(d.mrz_line2)}</pre>`;
+  resultEl.classList.remove("hidden");
+}
+</script>
+</body>
+</html>
