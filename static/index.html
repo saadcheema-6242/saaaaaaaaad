@@ -46,6 +46,7 @@
   .copy-cell:hover { color:var(--accent); border-color:var(--accent); }
   .mrz-block { position:relative; }
   .mrz-block #copyMrz { position:absolute; top:14px; right:8px; }
+  .exp { color:var(--bad); font-size:.8rem; font-weight:600; }
 </style>
 </head>
 <body>
@@ -165,17 +166,26 @@ function render(d) {
                    personal_number:"Personal no.", composite:"Overall" };
   const checks = Object.entries(d.checks).map(([k, v]) =>
     `<span class="badge ${v ? "ok" : "bad"}">${labels[k]} ${v ? "✓" : "✗"}</span>`).join("");
+  const genderMap = { M: "Male", F: "Female", X: "Unspecified" };
+  // Ordered to match the appointment form: Surname, Name, Date of Birth,
+  // Passport, Passport's Expiration Date, Gender, Nationality; extras below.
   const fields = [
-    ["Surname", d.surname], ["Given names", d.given_names], ["Passport number", d.passport_number],
-    ["Nationality", d.nationality], ["Issuing country", d.issuing_country],
-    ["Date of birth", d.date_of_birth], ["Sex", d.sex],
-    ["Expiry date", d.expiry_date + (d.expired ? " (EXPIRED)" : "")],
+    ["Surname", d.surname],
+    ["Name", d.given_names],
+    ["Date of Birth", d.date_of_birth],
+    ["Passport", d.passport_number],
+    ["Passport's Expiration Date", d.expiry_date],
+    ["Gender", genderMap[d.sex] || d.sex],
+    ["Nationality", d.nationality],
+    ["Issuing country", d.issuing_country],
     ["Personal number", d.personal_number || "—"],
   ];
-  // Each row gets its own copy button that copies just that value.
+  // Each row gets its own copy button that copies just that value. The expiry
+  // value stays clean (just the date) for pasting; "expired" shows as a tag.
   const rows = fields.map(([k, v]) => {
     const val = String(v ?? "");
-    return `<tr><td>${k}</td><td>${esc(val)}</td>
+    const tag = (k === "Passport's Expiration Date" && d.expired) ? ' <span class="exp">expired</span>' : "";
+    return `<tr><td>${k}</td><td>${esc(val)}${tag}</td>
       <td class="copy-td"><button class="copy-cell" data-copy="${esc(val)}" title="Copy ${esc(k)}">Copy</button></td></tr>`;
   }).join("");
 
