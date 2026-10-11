@@ -1,3 +1,13 @@
+---
+title: Passport MRZ Scanner
+emoji: 🛂
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # Passport MRZ Scanner
 
 FastAPI backend + plain HTML frontend. Reads the machine readable zone (MRZ) of a passport photo page, parses it (ICAO 9303, TD3) and verifies every check digit.
