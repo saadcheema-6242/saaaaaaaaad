@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -12,6 +13,23 @@ try:
     from passporteye import read_mrz
 except ImportError:  # lets the server start so you can see a clear error
     read_mrz = None
+
+# Help PassportEye/pytesseract find the Tesseract binary when it is installed
+# but not on PATH (common on Windows, and inside uvicorn's --reload worker),
+# without breaking Linux/Docker where it is on PATH. Override with TESSERACT_CMD.
+try:
+    import pytesseract
+
+    for _cand in (
+        os.environ.get("TESSERACT_CMD"),
+        shutil.which("tesseract"),
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    ):
+        if _cand and os.path.exists(_cand):
+            pytesseract.pytesseract.tesseract_cmd = _cand
+            break
+except ImportError:
+    pass
 
 MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 ALLOWED = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
