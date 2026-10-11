@@ -53,9 +53,14 @@ def _parse_date(yymmdd: str, kind: str):
 
 
 def _name_parts(field: str):
-    parts = field.split("<<", 1)
-    surname = parts[0].replace("<", " ").strip()
-    given = parts[1].replace("<", " ").strip() if len(parts) > 1 else ""
+    # Field is SURNAME<<GIVEN<NAMES<<<<<<padding. Name components are separated
+    # by a single '<'; a run of two or more '<' starts the filler padding. OCR
+    # misreads of that padding ('<' read as a letter/digit) must not leak into
+    # the name, so cut each part at its first '<<'.
+    surname_raw, _, rest = field.partition("<<")
+    given_raw = rest.split("<<", 1)[0]
+    surname = " ".join(surname_raw.replace("<", " ").split())
+    given = " ".join(given_raw.replace("<", " ").split())
     return surname, given
 
 
