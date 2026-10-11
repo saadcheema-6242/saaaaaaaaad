@@ -35,10 +35,19 @@ def _parse_date(yymmdd: str, kind: str):
     try:
         yy, mm, dd = int(yymmdd[0:2]), int(yymmdd[2:4]), int(yymmdd[4:6])
         if kind == "expiry":
-            year = 2000 + yy
-        else:
-            year = 2000 + yy if yy <= date.today().year % 100 else 1900 + yy
-        return date(year, mm, dd).isoformat()
+            # Passport expiry dates are always in the 2000s.
+            return date(2000 + yy, mm, dd).isoformat()
+        # Birth dates carry no century in the MRZ. Assume the 2000s, but if
+        # that lands in the future, it must be the 1900s (e.g. yy=26 -> 1926,
+        # not 2026). Guard the 1900s date too, in case 2000+yy was a leap
+        # year that 1900+yy is not.
+        d = date(2000 + yy, mm, dd)
+        if d > date.today():
+            try:
+                d = date(1900 + yy, mm, dd)
+            except ValueError:
+                return None
+        return d.isoformat()
     except (ValueError, IndexError):
         return None
 
