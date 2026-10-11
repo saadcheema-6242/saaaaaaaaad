@@ -39,6 +39,8 @@
   .err { color:var(--bad); background:var(--badbg); padding:12px; border-radius:8px; }
   .hidden { display:none; }
   .checks { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .result-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  #copyBtn { padding:6px 14px; font-size:.9rem; }
 </style>
 </head>
 <body>
@@ -137,20 +139,45 @@ function render(d) {
                    personal_number:"Personal no.", composite:"Overall" };
   const checks = Object.entries(d.checks).map(([k, v]) =>
     `<span class="badge ${v ? "ok" : "bad"}">${labels[k]} ${v ? "✓" : "✗"}</span>`).join("");
-  const rows = [
+  const fields = [
     ["Surname", d.surname], ["Given names", d.given_names], ["Passport number", d.passport_number],
     ["Nationality", d.nationality], ["Issuing country", d.issuing_country],
     ["Date of birth", d.date_of_birth], ["Sex", d.sex],
     ["Expiry date", d.expiry_date + (d.expired ? " (EXPIRED)" : "")],
     ["Personal number", d.personal_number || "—"],
-  ].map(([k, v]) => `<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join("");
+  ];
+  const rows = fields.map(([k, v]) => `<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join("");
+
+  const copyText = fields.map(([k, v]) => `${k}: ${v}`).join("\n")
+    + `\nValid: ${d.valid}\nMRZ:\n${d.mrz_line1}\n${d.mrz_line2}`;
 
   resultEl.innerHTML = `
-    <div><span class="badge ${d.valid ? "ok" : "bad"}">${d.valid ? "All check digits valid" : "Check failed — rescan or correct manually"}</span></div>
+    <div class="result-head">
+      <span class="badge ${d.valid ? "ok" : "bad"}">${d.valid ? "All check digits valid" : "Check failed — rescan or correct manually"}</span>
+      <button id="copyBtn">Copy</button>
+    </div>
     <div class="checks">${checks}</div>
     <table style="margin-top:12px">${rows}</table>
     <pre>${esc(d.mrz_line1)}\n${esc(d.mrz_line2)}</pre>`;
   resultEl.classList.remove("hidden");
+
+  $("copyBtn").onclick = async () => {
+    const btn = $("copyBtn");
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(copyText);
+      ok = true;
+    } catch {
+      // Fallback for older browsers / non-secure contexts
+      const ta = document.createElement("textarea");
+      ta.value = copyText; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { ok = document.execCommand("copy"); } catch {}
+      ta.remove();
+    }
+    btn.textContent = ok ? "Copied ✓" : "Copy failed";
+    setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+  };
 }
 </script>
 </body>
