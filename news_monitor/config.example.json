@@ -1,0 +1,27 @@
+{
+  "check_interval_seconds": 120,
+  "renotify_seconds": 60,
+
+  "sources": [
+    { "name": "GVC World (Pakistan-Greece)", "url": "https://pk-gr.gvcworld.eu/en/news", "match": "/news/" },
+    { "name": "Greek Embassy Islamabad",     "url": "https://www.mfa.gr/missionsabroad/en/pakistan-en/news/", "match": "/news/" }
+  ],
+
+  "keywords": ["appointment", "appointments", "slot", "slots", "schedule", "released",
+               "january","february","march","april","may","june","july","august",
+               "september","october","november","december"],
+  "keywords_only": false,
+
+  "email": {
+    "enabled": true,
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 465,
+    "username": "YOUR_ADDRESS@gmail.com",
+    "app_password": "xxxx xxxx xxxx xxxx",
+    "from": "YOUR_ADDRESS@gmail.com",
+    "to": ["YOUR_ADDRESS@gmail.com"]
+  },
+
+  "desktop_popup": true,
+  "sound": true
+}

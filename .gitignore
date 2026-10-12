@@ -11,6 +11,9 @@ env/
 # Secrets / local config
 .env
 .env.*
+news_monitor/config.json
+news_monitor/seen.json
+news_monitor/monitor.log
 
 # OS / editor cruft
 .DS_Store
