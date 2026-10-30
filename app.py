@@ -17,6 +17,38 @@ MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 ALLOWED = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
 BASE = Path(__file__).parent
 
+
+def _looks_like_image(data: bytes) -> bool:
+    """Validate the actual bytes, not the client-supplied content type."""
+    if data[:3] == b"\xff\xd8\xff":                      # JPEG
+        return True
+    if data[:8] == b"\x89PNG\r\n\x1a\n":                  # PNG
+        return True
+    if data[:2] == b"BM":                                # BMP
+        return True
+    if data[:4] in (b"II*\x00", b"MM\x00*"):             # TIFF (LE / BE)
+        return True
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":    # WEBP
+        return True
+    return False
+
+
+def _raw_mrz_text(mrz) -> str:
+    """Pull the OCR'd MRZ text out of a PassportEye result.
+
+    PassportEye exposes it a few different ways across versions; try the
+    richest source first and fall back, so a changed/empty ``aux`` key does
+    not silently turn every scan into a "no MRZ found" error.
+    """
+    aux = getattr(mrz, "aux", None) or {}
+    text = (aux.get("text") or "").strip()
+    if text:
+        return text
+    try:
+        return (mrz.to_dict().get("raw_text") or "").strip()
+    except Exception:
+        return ""
+
 app = FastAPI(title="Passport MRZ Scanner")
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
@@ -36,6 +68,8 @@ async def scan(file: UploadFile = File(...)):
     data = await file.read()
     if len(data) > MAX_BYTES:
         raise HTTPException(413, "Image is larger than 10 MB.")
+    if not _looks_like_image(data):
+        raise HTTPException(415, "That file is not a JPG, PNG, WEBP, BMP or TIFF image.")
 
     # Privacy: the image only exists on disk while it is being processed.
     suffix = Path(file.filename or "scan.jpg").suffix or ".jpg"
@@ -53,7 +87,7 @@ async def scan(file: UploadFile = File(...)):
     if mrz is None:
         raise HTTPException(422, "No MRZ found. Retake the photo: flat, well lit, whole photo page in frame.")
 
-    raw = (mrz.aux or {}).get("text", "") if hasattr(mrz, "aux") else ""
+    raw = _raw_mrz_text(mrz)
     lines = [ln for ln in raw.replace("\r", "").split("\n") if ln.strip()]
 
     if len(lines) >= 2 and len(lines[-1].strip()) >= 40:
